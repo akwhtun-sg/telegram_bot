@@ -217,6 +217,7 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
             "note": note
         })
 
+
         total_sum = 0.0
         table_body_rows = []
         for item in transactions_data:
