@@ -30,12 +30,12 @@ ADMIN_CHAT_IDS = [chat_id for chat_id in [ADMIN_CHAT_ID_1, ADMIN_CHAT_ID_2] if c
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-table_rows = []
+transactions_data = []
 active_admin_message_ids = {}
 
 def reset_daily_table():
-    global table_rows, active_admin_message_ids
-    table_rows.clear()
+    global transactions_data, active_admin_message_ids
+    transactions_data.clear()
     active_admin_message_ids.clear()
     print("Daily payment table has been automatically reset at midnight.")
 
@@ -140,7 +140,7 @@ def blur_sensitive_areas(image_bytes):
 
 
 def process_payment_with_table_append(file_id, sender_name, sender_username):
-    global table_rows, active_admin_message_ids
+    global transactions_data, active_admin_message_ids
     
     try:
         file_info_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}"
@@ -207,25 +207,35 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
         tx_date = extracted_data.get("date", current_date)
         note = extracted_data.get("note", "-")
 
-        new_row = f"| {sender_name} | {amount} {currency} | `{transaction_id}` | {tx_date} | {note} |"
-        table_rows.append(new_row)
+        # Save data internally
+        transactions_data.append({
+            "name": sender_name,
+            "amount": amount,
+            "currency": currency,
+            "transaction_id": transaction_id,
+            "date": tx_date,
+            "note": note
+        })
 
-        total_sum = 0
-        for r in table_rows:
-            parts = [p.strip() for p in r.split('|') if p.strip() != '']
-            if len(parts) >= 2:
-                amt_clean = parts[1].replace("KS", "").replace(",", "").strip()
-                try:
-                    total_sum += float(amt_clean)
-                except ValueError:
-                    pass
+        total_sum = 0.0
+        table_body_rows = []
+        for item in transactions_data:
+            try:
+                amt_val = float(str(item["amount"]).replace(",", ""))
+            except ValueError:
+                amt_val = 0.0
+            total_sum += amt_val
+            
+            # Telegram table format: Name | Amount | Date | Note (No Transaction ID)
+            row_str = f"| {item['name']} | {item['amount']} {item['currency']} | {item['date']} | {item['note']} |"
+            table_body_rows.append(row_str)
 
         table_header = (
             "**Live Payment Table**\n\n"
-            "| Sender | Amount | Transaction ID | Date | Note |\n"
+            "| Name | Amount | Date | Note |\n"
         )
-        table_body = "\n".join(table_rows)
-        table_footer = f"\n| **Total** | **{int(total_sum):,} KS** | | | |"
+        table_body = "\n".join(table_body_rows)
+        table_footer = f"\n| **Total** | **{int(total_sum):,} KS** | | |"
         
         full_table_text = table_header + table_body + table_footer
 
@@ -263,16 +273,15 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                 if res.get("ok"):
                     active_admin_message_ids[admin_chat_id] = res["result"]["message_id"]
 
-
     except Exception as e:
         print(f"Background Processing Error: {e}")
 
 
 def send_excel_export(chat_id):
-    """Export table rows to Excel including Note column"""
-    global table_rows 
+    """Export table rows to Excel including Transaction ID and Note column"""
+    global transactions_data 
     
-    if not table_rows:
+    if not transactions_data:
         requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
             json={"chat_id": chat_id, "text": "No transaction records available to export today."}
@@ -282,24 +291,22 @@ def send_excel_export(chat_id):
     data_list = []
     total_amount = 0.0  
     
-    for row in table_rows:
-        parts = [p.strip() for p in row.split('|') if p.strip() != '']
-        if len(parts) >= 5:
-            amount_str = parts[1].replace("KS", "").replace(",", "").strip()
-            try:
-                numeric_amount = float(amount_str)
-            except ValueError:
-                numeric_amount = 0.0
+    for item in transactions_data:
+        try:
+            numeric_amount = float(str(item["amount"]).replace(",", ""))
+        except ValueError:
+            numeric_amount = 0.0
 
-            total_amount += numeric_amount  
+        total_amount += numeric_amount  
 
-            data_list.append({
-                "Sender": parts[0],
-                "Amount": numeric_amount,
-                "Transaction ID": parts[2].replace("`", ""),
-                "Date": parts[3],
-                "Note": parts[4]
-            })
+        # Excel keeps original columns including Transaction ID
+        data_list.append({
+            "Sender": item["name"],
+            "Amount": numeric_amount,
+            "Transaction ID": item["transaction_id"].replace("`", ""),
+            "Date": item["date"],
+            "Note": item["note"]
+        })
 
     df = pd.DataFrame(data_list)
     
