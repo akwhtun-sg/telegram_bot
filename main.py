@@ -217,7 +217,6 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
             "note": note
         })
 
-
         total_sum = 0.0
         table_body_rows = []
         for item in transactions_data:
@@ -227,16 +226,16 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                 amt_val = 0.0
             total_sum += amt_val
             
-            # Telegram table format remains: Name | Amount | Date | Note
+            # Telegram table format: Name | Amount | Date | Note (Without vertical pipe at the outer ends to match user format precisely if needed, or keeping standard markdown)
             row_str = f"| {item['name']} | {item['amount']} {item['currency']} | {item['date']} | {item['note']} |"
             table_body_rows.append(row_str)
 
         table_header = (
-            "**Live Payment Table**\n\n"
+            "Live Payment Table\n\n"
             "| Name | Amount | Date | Note |\n"
         )
         table_body = "\n".join(table_body_rows)
-        table_footer = f"\n| **Total** | **{int(total_sum):,}** | | |"
+        table_footer = f"\n| Total | {int(total_sum):,} | | |"
         
         full_table_text = table_header + table_body + table_footer
 
@@ -258,10 +257,10 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                 if edit_res.get("ok"):
                     updated_successfully = True
                 else:
-                    # မက်ဆေ့ခ်ျကို ဖျက်လိုက်ပြီဖြစ်၍ ID ဟောင်းကို ရှင်းလင်းခြင်း
+                    # Clear invalid message ID since it was likely deleted
                     active_admin_message_ids.pop(admin_chat_id, None)
 
-            # အကယ်၍ Edit လုပ်၍မရတော့ပါက (သို့မဟုတ် မက်ဆေ့ခ်ျဖျက်ထားလျှင်) ဇယားအသစ်ကို sendMessage ဖြင့် တိုက်ရိုက် ပို့မည်
+            # If message edit failed or message was deleted, send a fresh new message table
             if not updated_successfully:
                 res = requests.post(
                     f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
@@ -302,7 +301,6 @@ def send_excel_export(chat_id):
 
         total_amount += numeric_amount  
 
-        # Excel export uses Payment Type instead of Transaction ID
         data_list.append({
             "Sender": item["name"],
             "Amount": numeric_amount,
