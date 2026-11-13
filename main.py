@@ -218,7 +218,7 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
         })
 
         total_sum = 0.0
-        table_body_rows = []
+        table_lines = []
         for item in transactions_data:
             try:
                 amt_val = float(str(item["amount"]).replace(",", ""))
@@ -226,16 +226,13 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                 amt_val = 0.0
             total_sum += amt_val
             
-            # Telegram table format: Name | Amount | Date | Note (Without vertical pipe at the outer ends to match user format precisely if needed, or keeping standard markdown)
-            row_str = f"| {item['name']} | {item['amount']} {item['currency']} | {item['date']} | {item['note']} |"
-            table_body_rows.append(row_str)
+            # Format rows using spaces only instead of |
+            line_str = f"Name: {item['name']}    Amount: {item['amount']} {item['currency']}    Type: {item['payment_type']}    Date: {item['date']}    Note: {item['note']}"
+            table_lines.append(line_str)
 
-        table_header = (
-            "Live Payment Table\n\n"
-            "| Name | Amount | Date | Note |\n"
-        )
-        table_body = "\n".join(table_body_rows)
-        table_footer = f"\n| Total | {int(total_sum):,} | | |"
+        table_header = "Live Payment Records\n\n"
+        table_body = "\n".join(table_lines)
+        table_footer = f"\n\nTotal Sum: {int(total_sum):,}"
         
         full_table_text = table_header + table_body + table_footer
 
@@ -249,25 +246,21 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                     json={
                         "chat_id": admin_chat_id,
                         "message_id": current_msg_id,
-                        "text": full_table_text,
-                        "parse_mode": "Markdown"
+                        "text": full_table_text
                     }
                 ).json()
                 
                 if edit_res.get("ok"):
                     updated_successfully = True
                 else:
-                    # Clear invalid message ID since it was likely deleted
                     active_admin_message_ids.pop(admin_chat_id, None)
 
-            # If message edit failed or message was deleted, send a fresh new message table
             if not updated_successfully:
                 res = requests.post(
                     f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
                     json={
                         "chat_id": admin_chat_id,
                         "text": full_table_text,
-                        "parse_mode": "Markdown",
                         "disable_notification": True
                     }
                 ).json()
@@ -280,7 +273,7 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
 
 
 def send_excel_export(chat_id):
-    """Export table rows to Excel including Payment Type instead of Transaction ID"""
+    """Export table rows to Excel including Payment Type"""
     global transactions_data 
     
     if not transactions_data:
