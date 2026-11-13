@@ -14,6 +14,8 @@ from openpyxl.styles import Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
+from fastapi import FastAPI, Request, Response, BackgroundTasks
+from fastapi.responses import HTMLResponse
 
 load_dotenv()
 
@@ -41,6 +43,55 @@ scheduler = BackgroundScheduler()
 scheduler.add_job(reset_daily_table, 'cron', hour=0, minute=0)
 scheduler.start()
 
+@app.get("/", response_class=HTMLResponse)
+async def bot_status_page():
+    return """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Telegram Bot Status</title>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                background-color: #0f172a;
+                color: #f8fafc;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+            }
+            .card {
+                background-color: #1e293b;
+                padding: 2rem 3rem;
+                border-radius: 12px;
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+                text-align: center;
+                border: 1px solid #334155;
+            }
+            .status-dot {
+                height: 12px;
+                width: 12px;
+                background-color: #22c55e;
+                border-radius: 50%;
+                display: inline-block;
+                margin-right: 8px;
+                box-shadow: 0 0 10px #22c55e;
+            }
+            h1 { margin: 0 0 0.5rem 0; font-size: 1.5rem; }
+            p { color: #94a3b8; margin: 0; font-size: 0.95rem; }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1><span class="status-dot"></span>Telegram Bot is Awake</h1>
+            <p>Payment receipt tracking service is actively running.</p>
+        </div>
+    </body>
+    </html>
+    """
 
 @app.post("/telegram/webhook")
 async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
