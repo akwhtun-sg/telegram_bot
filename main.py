@@ -201,38 +201,48 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
         text_response = text_response.replace("```json", "").replace("```", "").strip()
         
         extracted_data = json.loads(text_response)
-        amount = extracted_data.get("amount", "0")
-        currency = extracted_data.get("currency", "")
+        raw_amount = extracted_data.get("amount", "0")
+        
+        # Clean amount to ensure proper numerical formatting without commas/symbols
+        clean_amt_str = str(raw_amount).replace(",", "").replace("KS", "").strip()
+        try:
+            formatted_amount = f"{int(float(clean_amt_str)):,}"
+        except ValueError:
+            formatted_amount = clean_amt_str
+
         payment_type = extracted_data.get("payment_type", "Other")
         tx_date = extracted_data.get("date", current_date)
         note = extracted_data.get("note", "-")
 
-        # Save data internally with payment_type
+        # Save data internally
         transactions_data.append({
             "name": sender_name,
-            "amount": amount,
-            "currency": currency,
+            "amount_raw": clean_amt_str,
+            "amount_formatted": formatted_amount,
             "payment_type": payment_type,
             "date": tx_date,
             "note": note
         })
 
         total_sum = 0.0
-        table_lines = []
+        table_body_rows = []
         for item in transactions_data:
             try:
-                amt_val = float(str(item["amount"]).replace(",", ""))
+                amt_val = float(item["amount_raw"])
             except ValueError:
                 amt_val = 0.0
             total_sum += amt_val
             
-            # Format rows using spaces only instead of |
-            line_str = f"Name: {item['name']}    Amount: {item['amount']} {item['currency']}    Type: {item['payment_type']}    Date: {item['date']}    Note: {item['note']}"
-            table_lines.append(line_str)
+            # Using table-like format using spaces instead of |
+            row_str = f"{item['name']}    {item['amount_formatted']}    {item['payment_type']}    {item['date']}    {item['note']}"
+            table_body_rows.append(row_str)
 
-        table_header = "Live Payment Records\n\n"
-        table_body = "\n".join(table_lines)
-        table_footer = f"\n\nTotal Sum: {int(total_sum):,}"
+        table_header = (
+            "**Live Payment Table**\n\n"
+            "Name    Amount    Type    Date    Note\n"
+        )
+        table_body = "\n".join(table_body_rows)
+        table_footer = f"\n\nTotal    {int(total_sum):,}"
         
         full_table_text = table_header + table_body + table_footer
 
@@ -246,7 +256,8 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                     json={
                         "chat_id": admin_chat_id,
                         "message_id": current_msg_id,
-                        "text": full_table_text
+                        "text": full_table_text,
+                        "parse_mode": "Markdown"
                     }
                 ).json()
                 
@@ -261,6 +272,7 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                     json={
                         "chat_id": admin_chat_id,
                         "text": full_table_text,
+                        "parse_mode": "Markdown",
                         "disable_notification": True
                     }
                 ).json()
@@ -288,7 +300,7 @@ def send_excel_export(chat_id):
     
     for item in transactions_data:
         try:
-            numeric_amount = float(str(item["amount"]).replace(",", ""))
+            numeric_amount = float(item["amount_raw"])
         except ValueError:
             numeric_amount = 0.0
 
