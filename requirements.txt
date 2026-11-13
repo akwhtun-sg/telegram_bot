@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+requests
+python-dotenv
+google-genai
+pillow
+opencv-python-headless
+numpy
+pandas
+openpyxl
+apscheduler
