@@ -167,7 +167,7 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
             "JSON keys required: "
             "1. amount (numerical value only, integer format without any decimals or trailing zeros like .00, and without any minus signs) "
             "2. currency (always output currency strictly as 'KS' regardless of how it appears on the receipt) "
-            "3. transaction_id (Ref No) "
+            "3. payment_type (Identify the payment app/bank from the receipt such as KPay, Wave, AYA, CB, etc. If unknown, output 'Other') "
             "4. date (Transaction date in YYYY-MM-DD format) "
             "5. note (Any remark, note, description, or message written on the receipt, or '-' if none)"
         )
@@ -203,16 +203,16 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
         extracted_data = json.loads(text_response)
         amount = extracted_data.get("amount", "0")
         currency = extracted_data.get("currency", "KS")
-        transaction_id = extracted_data.get("transaction_id", "N/A")
+        payment_type = extracted_data.get("payment_type", "Other")
         tx_date = extracted_data.get("date", current_date)
         note = extracted_data.get("note", "-")
 
-        # Save data internally
+        # Save data internally with payment_type
         transactions_data.append({
             "name": sender_name,
             "amount": amount,
             "currency": currency,
-            "transaction_id": transaction_id,
+            "payment_type": payment_type,
             "date": tx_date,
             "note": note
         })
@@ -226,7 +226,7 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                 amt_val = 0.0
             total_sum += amt_val
             
-            # Telegram table format: Name | Amount | Date | Note (No Transaction ID)
+            # Telegram table format remains: Name | Amount | Date | Note
             row_str = f"| {item['name']} | {item['amount']} {item['currency']} | {item['date']} | {item['note']} |"
             table_body_rows.append(row_str)
 
@@ -278,7 +278,7 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
 
 
 def send_excel_export(chat_id):
-    """Export table rows to Excel including Transaction ID and Note column"""
+    """Export table rows to Excel including Payment Type instead of Transaction ID"""
     global transactions_data 
     
     if not transactions_data:
@@ -299,11 +299,11 @@ def send_excel_export(chat_id):
 
         total_amount += numeric_amount  
 
-        # Excel keeps original columns including Transaction ID
+        # Excel export uses Payment Type instead of Transaction ID
         data_list.append({
             "Sender": item["name"],
             "Amount": numeric_amount,
-            "Transaction ID": item["transaction_id"].replace("`", ""),
+            "Payment Type": item["payment_type"],
             "Date": item["date"],
             "Note": item["note"]
         })
