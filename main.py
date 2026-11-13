@@ -246,6 +246,8 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                 
                 if edit_res.get("ok"):
                     updated_successfully = True
+                else:
+                    active_admin_message_ids.pop(admin_chat_id, None)
 
             if not updated_successfully:
                 res = requests.post(
@@ -260,6 +262,7 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                 
                 if res.get("ok"):
                     active_admin_message_ids[admin_chat_id] = res["result"]["message_id"]
+
 
     except Exception as e:
         print(f"Background Processing Error: {e}")
