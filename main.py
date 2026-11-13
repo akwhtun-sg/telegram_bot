@@ -166,7 +166,7 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
             f"If note or remark or message is missing on receipt, output '-' for the note field. "
             "JSON keys required: "
             "1. amount (numerical value only, integer format without any decimals or trailing zeros like .00, and without any minus signs) "
-            "2. currency (always output currency strictly as 'KS' regardless of how it appears on the receipt) "
+            "2. currency (always output currency string in uppercase, only digits and letters) "
             "3. payment_type (Identify the payment app/bank from the receipt such as KPay, Wave, AYA, CB, etc. If unknown, output 'Other') "
             "4. date (Transaction date in YYYY-MM-DD format) "
             "5. note (Any remark, note, description, or message written on the receipt, or '-' if none)"
@@ -202,7 +202,7 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
         
         extracted_data = json.loads(text_response)
         amount = extracted_data.get("amount", "0")
-        currency = extracted_data.get("currency", "KS")
+        currency = extracted_data.get("currency", "")
         payment_type = extracted_data.get("payment_type", "Other")
         tx_date = extracted_data.get("date", current_date)
         note = extracted_data.get("note", "-")
@@ -235,7 +235,7 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
             "| Name | Amount | Date | Note |\n"
         )
         table_body = "\n".join(table_body_rows)
-        table_footer = f"\n| **Total** | **{int(total_sum):,} KS** | | |"
+        table_footer = f"\n| **Total** | **{int(total_sum):,}** | | |"
         
         full_table_text = table_header + table_body + table_footer
 
@@ -257,8 +257,10 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                 if edit_res.get("ok"):
                     updated_successfully = True
                 else:
+                    # မက်ဆေ့ခ်ျကို ဖျက်လိုက်ပြီဖြစ်၍ ID ဟောင်းကို ရှင်းလင်းခြင်း
                     active_admin_message_ids.pop(admin_chat_id, None)
 
+            # အကယ်၍ Edit လုပ်၍မရတော့ပါက (သို့မဟုတ် မက်ဆေ့ခ်ျဖျက်ထားလျှင်) ဇယားအသစ်ကို sendMessage ဖြင့် တိုက်ရိုက် ပို့မည်
             if not updated_successfully:
                 res = requests.post(
                     f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
@@ -349,14 +351,14 @@ def send_excel_export(chat_id):
                 cell.alignment = Alignment(horizontal='left', vertical='center')
             elif col_num == 2:
                 cell.alignment = Alignment(horizontal='right', vertical='center')
-                cell.number_format = '#,##0 "KS"'
+                cell.number_format = '#,##0 ""'
             else:
                 cell.alignment = Alignment(horizontal='center', vertical='center')
 
     last_row = len(df) + 2
     ws.row_dimensions[last_row].height = 22
 
-    label_cell = ws.cell(row=last_row, column=1, value="Total Sum")
+    label_cell = ws.cell(row=last_row, column=1, value="Total")
     label_cell.font = bold_font
     label_cell.alignment = Alignment(horizontal='left', vertical='center')
     label_cell.border = thin_border
@@ -365,7 +367,7 @@ def send_excel_export(chat_id):
     sum_cell.value = total_amount  
     sum_cell.font = bold_font
     sum_cell.alignment = Alignment(horizontal='right', vertical='center')
-    sum_cell.number_format = '#,##0 "KS"'
+    sum_cell.number_format = '#,##0 ""'
     sum_cell.border = thin_border
 
     for col_num in range(3, len(df.columns) + 1):
