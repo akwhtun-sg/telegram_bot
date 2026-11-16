@@ -143,14 +143,15 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
     global transactions_data, active_admin_message_ids
     
     try:
-        file_info_url = f"[https://api.telegram.org/bot](https://api.telegram.org/bot){TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}"
+        # Fixed URL construction without markdown syntax interference
+        file_info_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}"
         file_response = requests.get(file_info_url).json()
 
         if not file_response.get("ok"):
             return
 
         file_path = file_response["result"]["file_path"]
-        image_url = f"[https://api.telegram.org/file/bot](https://api.telegram.org/file/bot){TELEGRAM_BOT_TOKEN}/{file_path}"
+        image_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
 
         img_response = requests.get(image_url)
         raw_image_bytes = img_response.content
@@ -232,13 +233,11 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                 amt_val = 0.0
             total_sum += amt_val
             
-            # Formatted with fixed spacing inside code block for clean alignment
             row_str = f"{item['name']:<12} {item['amount_formatted']:<10} {item['payment_type']:<8} {item['note']}"
             table_body_rows.append(row_str)
 
         today_header_date = datetime.now().strftime("%Y-%m-%d")
         
-        # Wrapped inside monospace code block (```) for neat column alignment in Telegram
         full_table_text = (
             f"```text\n"
             f"{today_header_date} Payment\n\n"
@@ -287,7 +286,7 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
 
 
 def send_excel_export(chat_id):
-    """Export table rows to Excel including Payment Type (Unchanged Excel structure)"""
+    """Export table rows to Excel including Payment Type"""
     global transactions_data 
     
     if not transactions_data:
