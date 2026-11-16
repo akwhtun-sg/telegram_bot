@@ -33,14 +33,20 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 transactions_data = []
 active_admin_message_ids = {}
 
-def reset_daily_table():
-    global transactions_data, active_admin_message_ids
-    transactions_data.clear()
-    active_admin_message_ids.clear()
-    print("Daily payment table has been automatically reset at midnight.")
+def scheduled_auto_export():
+    """Scheduler job that runs every 1 minute (for testing) to export and send Excel to all admins"""
+    global transactions_data
+    if not transactions_data:
+        print("Scheduler triggered: No transactions to export.")
+        return
+
+    print("Scheduler triggered: Automatically exporting and sending report to admins...")
+    for admin_chat_id in ADMIN_CHAT_IDS:
+        send_excel_export(admin_chat_id)
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(reset_daily_table, 'cron', hour=0, minute=0)
+# Runs every 1 minute for testing purposes as requested
+scheduler.add_job(scheduled_auto_export, 'interval', seconds=60)
 scheduler.start()
 
 @app.get("/", response_class=HTMLResponse)
@@ -108,7 +114,14 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
 
         if "photo" in message:
             sender = message.get("from", {})
-            sender_name = sender.get("first_name", "Unknown User")
+            first_name = sender.get("first_name", "")
+            last_name = sender.get("last_name", "")
+            
+            # Combine first name and last name to get full name. Fallback to "Unknown User" if both are empty.
+            full_name = f"{first_name} {last_name}".strip()
+            if not full_name:
+                full_name = "Unknown User"
+
             sender_username = f"@{sender.get('username')}" if sender.get("username") else "None"
 
             photos = message["photo"]
@@ -118,7 +131,7 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
             background_tasks.add_task(
                 process_payment_with_table_append, 
                 file_id, 
-                sender_name, 
+                full_name, 
                 sender_username
             )
 
@@ -139,11 +152,10 @@ def blur_sensitive_areas(image_bytes):
     return encoded_img.tobytes()
 
 
-def process_payment_with_table_append(file_id, sender_name, sender_username):
+def process_payment_with_table_append(file_id, full_name, sender_username):
     global transactions_data, active_admin_message_ids
     
     try:
-        # Fixed URL construction without markdown syntax interference
         file_info_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}"
         file_response = requests.get(file_info_url).json()
 
@@ -214,9 +226,9 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
         tx_date = extracted_data.get("date", current_date)
         note = extracted_data.get("note", "-")
 
-        # Save data internally
+        # Save full name data internally
         transactions_data.append({
-            "name": sender_name,
+            "name": full_name,
             "amount_raw": clean_amt_str,
             "amount_formatted": formatted_amount,
             "payment_type": payment_type,
@@ -233,18 +245,16 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                 amt_val = 0.0
             total_sum += amt_val
             
-            row_str = f"{item['name']:<12} {item['amount_formatted']:<10} {item['payment_type']:<8} {item['note']}"
+            row_str = f"{item['name']}    {item['amount_formatted']}    {item['payment_type']}    {item['note']}"
             table_body_rows.append(row_str)
 
         today_header_date = datetime.now().strftime("%Y-%m-%d")
         
         full_table_text = (
-            f"```text\n"
             f"{today_header_date} Payment\n\n"
-            f"Name         Amount     Type     Note\n\n"
+            f"Name    Amount    Type    Note\n\n"
             + "\n".join(table_body_rows) +
-            f"\n\nTotal        {int(total_sum):,}\n"
-            f"```"
+            f"\n\nTotal    {int(total_sum):,}"
         )
 
         for admin_chat_id in ADMIN_CHAT_IDS:
@@ -257,8 +267,7 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                     json={
                         "chat_id": admin_chat_id,
                         "message_id": current_msg_id,
-                        "text": full_table_text,
-                        "parse_mode": "Markdown"
+                        "text": full_table_text
                     }
                 ).json()
                 
@@ -273,7 +282,6 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                     json={
                         "chat_id": admin_chat_id,
                         "text": full_table_text,
-                        "parse_mode": "Markdown",
                         "disable_notification": True
                     }
                 ).json()
@@ -286,13 +294,13 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
 
 
 def send_excel_export(chat_id):
-    """Export table rows to Excel including Payment Type"""
+    """Export table rows to Excel including full name under Sender column"""
     global transactions_data 
     
     if not transactions_data:
         requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-            json={"chat_id": chat_id, "text": "No transaction records available to export today."}
+            json={"chat_id": chat_id, "text": "No transaction records available to export."}
         )
         return
 
