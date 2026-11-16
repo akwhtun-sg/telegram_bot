@@ -33,20 +33,22 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 transactions_data = []
 active_admin_message_ids = {}
 
-def scheduled_auto_export():
-    """Scheduler job that runs every 1 minute (for testing) to export and send Excel to all admins"""
-    global transactions_data
-    if not transactions_data:
-        print("Scheduler triggered: No transactions to export.")
-        return
-
-    print("Scheduler triggered: Automatically exporting and sending report to admins...")
-    for admin_chat_id in ADMIN_CHAT_IDS:
-        send_excel_export(admin_chat_id)
+def daily_midnight_task():
+    """Runs once a day at midnight: sends final daily report to admins and resets data for the new day."""
+    global transactions_data, active_admin_message_ids
+    
+    if transactions_data:
+        print("Midnight cron triggered: Automatically exporting and sending report to admins...")
+        for admin_chat_id in ADMIN_CHAT_IDS:
+            send_excel_export(admin_chat_id)
+            
+    transactions_data.clear()
+    active_admin_message_ids.clear()
+    print("Daily payment table has been automatically reset at midnight.")
 
 scheduler = BackgroundScheduler()
-# Runs every 1 minute for testing purposes as requested
-scheduler.add_job(scheduled_auto_export, 'interval', seconds=60)
+# Runs once a day at midnight (00:00)
+scheduler.add_job(daily_midnight_task, 'cron', hour=0, minute=0)
 scheduler.start()
 
 @app.get("/", response_class=HTMLResponse)
@@ -117,7 +119,6 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
             first_name = sender.get("first_name", "")
             last_name = sender.get("last_name", "")
             
-            # Combine first name and last name to get full name. Fallback to "Unknown User" if both are empty.
             full_name = f"{first_name} {last_name}".strip()
             if not full_name:
                 full_name = "Unknown User"
@@ -226,7 +227,6 @@ def process_payment_with_table_append(file_id, full_name, sender_username):
         tx_date = extracted_data.get("date", current_date)
         note = extracted_data.get("note", "-")
 
-        # Save full name data internally
         transactions_data.append({
             "name": full_name,
             "amount_raw": clean_amt_str,
@@ -294,7 +294,7 @@ def process_payment_with_table_append(file_id, full_name, sender_username):
 
 
 def send_excel_export(chat_id):
-    """Export table rows to Excel including full name under Sender column"""
+    """Export table rows to Excel including full name and proper styling"""
     global transactions_data 
     
     if not transactions_data:
