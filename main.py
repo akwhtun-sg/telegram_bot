@@ -143,14 +143,14 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
     global transactions_data, active_admin_message_ids
     
     try:
-        file_info_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}"
+        file_info_url = f"[https://api.telegram.org/bot](https://api.telegram.org/bot){TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}"
         file_response = requests.get(file_info_url).json()
 
         if not file_response.get("ok"):
             return
 
         file_path = file_response["result"]["file_path"]
-        image_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
+        image_url = f"[https://api.telegram.org/file/bot](https://api.telegram.org/file/bot){TELEGRAM_BOT_TOKEN}/{file_path}"
 
         img_response = requests.get(image_url)
         raw_image_bytes = img_response.content
@@ -203,7 +203,6 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
         extracted_data = json.loads(text_response)
         raw_amount = extracted_data.get("amount", "0")
         
-        # Clean amount to ensure proper numerical formatting without commas/symbols
         clean_amt_str = str(raw_amount).replace(",", "").replace("KS", "").strip()
         try:
             formatted_amount = f"{int(float(clean_amt_str)):,}"
@@ -233,18 +232,21 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
                 amt_val = 0.0
             total_sum += amt_val
             
-            # Using table-like format using spaces instead of |
-            row_str = f"{item['name']}    {item['amount_formatted']}    {item['payment_type']}    {item['date']}    {item['note']}"
+            # Formatted with fixed spacing inside code block for clean alignment
+            row_str = f"{item['name']:<12} {item['amount_formatted']:<10} {item['payment_type']:<8} {item['note']}"
             table_body_rows.append(row_str)
 
-        table_header = (
-            "**Live Payment Table**\n\n"
-            "Name    Amount    Type    Date    Note\n"
-        )
-        table_body = "\n".join(table_body_rows)
-        table_footer = f"\n\nTotal    {int(total_sum):,}"
+        today_header_date = datetime.now().strftime("%Y-%m-%d")
         
-        full_table_text = table_header + table_body + table_footer
+        # Wrapped inside monospace code block (```) for neat column alignment in Telegram
+        full_table_text = (
+            f"```text\n"
+            f"{today_header_date} Payment\n\n"
+            f"Name         Amount     Type     Note\n\n"
+            + "\n".join(table_body_rows) +
+            f"\n\nTotal        {int(total_sum):,}\n"
+            f"```"
+        )
 
         for admin_chat_id in ADMIN_CHAT_IDS:
             current_msg_id = active_admin_message_ids.get(admin_chat_id)
@@ -285,7 +287,7 @@ def process_payment_with_table_append(file_id, sender_name, sender_username):
 
 
 def send_excel_export(chat_id):
-    """Export table rows to Excel including Payment Type"""
+    """Export table rows to Excel including Payment Type (Unchanged Excel structure)"""
     global transactions_data 
     
     if not transactions_data:
