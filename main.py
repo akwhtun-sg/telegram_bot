@@ -14,6 +14,7 @@ from openpyxl.styles import Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
+from pytz import timezone 
 from fastapi import FastAPI, Request, Response, BackgroundTasks
 from fastapi.responses import HTMLResponse
 
@@ -34,11 +35,11 @@ transactions_data = []
 active_admin_message_ids = {}
 
 def daily_midnight_task():
-    """Runs once a day at midnight: sends final daily report to admins and resets data for the new day."""
+    """Runs once a day at midnight (Myanmar Time): sends final daily report to admins and resets data."""
     global transactions_data, active_admin_message_ids
     
+    print("Midnight cron triggered in background...")
     if transactions_data:
-        print("Midnight cron triggered: Automatically exporting and sending report to admins...")
         for admin_chat_id in ADMIN_CHAT_IDS:
             send_excel_export(admin_chat_id)
             
@@ -47,8 +48,9 @@ def daily_midnight_task():
     print("Daily payment table has been automatically reset at midnight.")
 
 scheduler = BackgroundScheduler()
-# Runs once a day at midnight (00:00)
-scheduler.add_job(daily_midnight_task, 'cron', hour=0, minute=0)
+# Explicitly set timezone to Myanmar (Asia/Yangon) so midnight aligns with local time correctly
+mm_tz = timezone('Asia/Yangon')
+scheduler.add_job(daily_midnight_task, 'cron', hour=0, minute=0, timezone=mm_tz)
 scheduler.start()
 
 @app.get("/", response_class=HTMLResponse)
